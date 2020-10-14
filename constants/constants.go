@@ -10,6 +10,10 @@ const (
 )
 
 const (
+	LogTraceId = "traceId"
+)
+
+const (
 	Layout_Date_Time9      = "2006-01-02 15:04:05.999999999"
 	Layout_Date_Time6      = "2006-01-02 15:04:05.999999"
 	Layout_Date_Time       = "2006-01-02 15:04:05"
