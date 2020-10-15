@@ -1,10 +1,10 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 	"io"
 	"net"
 	"os"
@@ -27,7 +27,6 @@ func connect(user, password, host string, port int64) (*ssh.Client, *sftp.Client
 		sftpClient   *sftp.Client
 		err          error
 	)
-	// get auth method
 	auth = make([]ssh.AuthMethod, 0)
 	auth = append(auth, ssh.Password(password))
 
@@ -44,12 +43,12 @@ func connect(user, password, host string, port int64) (*ssh.Client, *sftp.Client
 	addr = fmt.Sprintf("%s:%d", host, port)
 
 	if sshClient, err = ssh.Dial("tcp", addr, clientConfig); err != nil {
-		return nil, nil, err
+		return nil, nil, errors.New(fmt.Sprintf("ssh.Dial tcp new sshClient err %s ", err.Error()))
 	}
 
 	// create sftp client
 	if sftpClient, err = sftp.NewClient(sshClient); err != nil {
-		return sshClient, nil, err
+		return sshClient, nil, errors.New(fmt.Sprintf("sshClient new sftpClient err %s ", err.Error()))
 	}
 
 	return sshClient, sftpClient, nil
@@ -94,38 +93,37 @@ func (this *sftpUtil) ConnectGet(username, password, host, portS, remoteFileUri 
 		}
 	}()
 
-	srcFile, err := sftpClient.Open(remoteFileUri)
-	if err != nil {
-		return err
+	var remoteFile *sftp.File
+	if remoteFile, err = sftpClient.Open(remoteFileUri); err != nil {
+		return errors.New(fmt.Sprintf("sftpClient.Open remoteFile err %s ", err.Error()))
 	}
 	defer func() {
-		if srcFile != nil {
-			srcFile.Close()
+		if remoteFile != nil {
+			remoteFile.Close()
 		}
 	}()
 
-	dstFile, err := os.Create(localFileUri)
-	if err != nil {
-		return err
+	var localFile *os.File
+	if localFile, err = os.Create(localFileUri); err != nil {
+		return errors.New(fmt.Sprintf("os.Create localFile err %s ", err.Error()))
 	}
 	defer func() {
-		if dstFile != nil {
-			dstFile.Close()
+		if localFile != nil {
+			localFile.Close()
 		}
 	}()
-	if _, err := srcFile.WriteTo(dstFile); err != nil {
-		return err
+	if _, err := remoteFile.WriteTo(localFile); err != nil {
+		return errors.New(fmt.Sprintf("remoteFile.WriteTo localFile err %s ", err.Error()))
 	}
 	return nil
 }
 
-func (this *sftpUtil) PushFile(username, password, host, port, localFileUri, remoteFileUri string) error {
+func (this *sftpUtil) PushFile(username, password, host, port, localFileUri, remoteFileUri string) (err error) {
 
 	var auths []ssh.AuthMethod
-	if aconn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
-		auths = append(auths, ssh.PublicKeysCallback(agent.NewClient(aconn).Signers))
 
-	}
+	auths = make([]ssh.AuthMethod, 0)
+	auths = append(auths, ssh.Password(password))
 
 	if password != "" {
 		auths = append(auths, ssh.Password(password))
@@ -138,33 +136,34 @@ func (this *sftpUtil) PushFile(username, password, host, port, localFileUri, rem
 	}
 
 	addr := host + ":" + port
-	conn, err := ssh.Dial("tcp", addr, &config)
-	if err != nil {
-		return err
+	var conn *ssh.Client
+	if conn, err = ssh.Dial("tcp", addr, &config); err != nil {
+		return errors.New(fmt.Sprintf("ssh.Dial err %s ", err.Error()))
 	}
 	defer conn.Close()
 
-	c, err := sftp.NewClient(conn)
-	if err != nil {
-		return err
+	var sftpClient *sftp.Client
+	if sftpClient, err = sftp.NewClient(conn); err != nil {
+		return errors.New(fmt.Sprintf("sftp.NewClient err %s ", err.Error()))
 	}
-	defer c.Close()
+	defer sftpClient.Close()
 
 	dir := path.Dir(remoteFileUri)
-	if err = c.MkdirAll(dir); err != nil {
-		return err
+	if err = sftpClient.MkdirAll(dir); err != nil {
+		return errors.New(fmt.Sprintf("sftpClient MkdirAll err %s ", err.Error()))
 	}
-	f, err := os.Open(localFileUri)
-	if err != nil {
-		return err
+	var f *os.File
+	if f, err = os.Open(localFileUri); err != nil {
+		return errors.New(fmt.Sprintf("os.Open local file err %s ", err.Error()))
 	}
 	defer f.Close()
-	w, err := c.Create(remoteFileUri)
-	if err != nil {
-		return err
+
+	var sftpFile *sftp.File
+	if sftpFile, err = sftpClient.Create(remoteFileUri); err != nil {
+		return errors.New(fmt.Sprintf("sftpClient create file err %s ", err.Error()))
 	}
-	defer w.Close()
-	buffer := make([]byte, 1024*5)
+	defer sftpFile.Close()
+	buffer := make([]byte, defaultBufferSize)
 	for {
 		n, err := f.Read(buffer)
 		if err != nil {
@@ -172,10 +171,10 @@ func (this *sftpUtil) PushFile(username, password, host, port, localFileUri, rem
 				break
 			}
 		}
-		w.Write(buffer[0:n])
+		sftpFile.Write(buffer[0:n])
 	}
 
 	return nil
 }
 
-var defaultBufferSize = 1024 * 512
+var defaultBufferSize = 1024 * 32 // 32k buffer
