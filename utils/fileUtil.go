@@ -32,6 +32,17 @@ func (this *fileUtil) CreateFile(fileUri string) (has bool, err error) {
 	return false, nil
 }
 
+func (this *fileUtil) TouchFile(fileUri string) (has bool, err error) {
+	dir := path.Dir(fileUri)
+	if err = os.MkdirAll(dir, os.ModePerm); err != nil {
+		return false, err
+	}
+	if _, err = os.Create(fileUri); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
 // 判断文件文件夹是否存在
 func (this *fileUtil) IsFileExist(path string) (bool, error) {
 	fileInfo, err := os.Stat(path)
