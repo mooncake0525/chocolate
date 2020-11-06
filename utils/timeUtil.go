@@ -31,7 +31,7 @@ func (t *timeUtil) FormatTime(layout string, d time.Time) (dString string) {
 	return
 }
 
-func (t *timeUtil) BeginTimeOfDay(d time.Time) (nd time.Time) {
+func (t *timeUtil) GetDayBeginTime(d time.Time) (nd time.Time) {
 	nd, _ = time.ParseInLocation(Layout_Date_Time, fmt.Sprintf("%s 00:00:00", d.Format(Layout_Date)), time.Local)
 	return
 }
