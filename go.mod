@@ -1,4 +1,4 @@
-module github.com/scotttu1688/chocolate
+module github.com/mooncake0525/chocolate
 
 go 1.14
 
